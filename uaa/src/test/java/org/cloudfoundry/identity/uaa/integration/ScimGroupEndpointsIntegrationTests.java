@@ -466,7 +466,7 @@ public class ScimGroupEndpointsIntegrationTests {
         headers.setAccept(Arrays.asList(MediaType.TEXT_HTML, MediaType.ALL));
 
         URI uri = serverRunning.buildUri("/oauth/authorize").queryParam("response_type", "code")
-                        .queryParam("state", "mystateid").queryParam("client_id", clientId)
+                        .queryParam("state", "mystateid4").queryParam("client_id", clientId)
                         .queryParam("redirect_uri", "http://anywhere.com").build();
         ResponseEntity<Void> result = serverRunning.getForResponse(uri.toString(), headers);
         assertEquals(HttpStatus.FOUND, result.getStatusCode());
