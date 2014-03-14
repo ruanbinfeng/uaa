@@ -217,8 +217,6 @@ public class SessionLeakTracker implements Filter {
 
     private static void doLog(String attribute, String value) {
         StringBuilder sb = new StringBuilder(80);
-        sb.append(Thread.currentThread().getName());
-        sb.append(' ');
         sb.append(attribute);
         sb.append('=');
         sb.append(value);
