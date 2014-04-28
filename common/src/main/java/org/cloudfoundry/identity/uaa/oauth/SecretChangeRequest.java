@@ -23,6 +23,16 @@ public class SecretChangeRequest {
 
     private String oldSecret;
     private String secret;
+    private String clientId;
+
+    public SecretChangeRequest() {
+    }
+
+    public SecretChangeRequest(String clientId, String oldSecret, String secret) {
+        this.oldSecret = oldSecret;
+        this.secret = secret;
+        this.clientId = clientId;
+    }
 
     public String getSecret() {
         return secret;
@@ -38,6 +48,14 @@ public class SecretChangeRequest {
 
     public void setOldSecret(String old) {
         this.oldSecret = old;
+    }
+
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
     }
 
 }

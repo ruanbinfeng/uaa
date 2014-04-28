@@ -16,7 +16,9 @@ package org.cloudfoundry.identity.uaa.oauth;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -24,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.cloudfoundry.identity.uaa.oauth.approval.ApprovalStore;
 import org.cloudfoundry.identity.uaa.rest.QueryableResourceManager;
 import org.cloudfoundry.identity.uaa.rest.SearchResults;
 import org.cloudfoundry.identity.uaa.rest.SimpleAttributeNameMapper;
@@ -36,6 +39,10 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.provider.BaseClientDetails;
 import org.springframework.security.oauth2.provider.ClientAlreadyExistsException;
@@ -49,27 +56,45 @@ import org.springframework.security.oauth2.provider.NoSuchClientException;
  */
 public class ClientAdminEndpointsTests {
 
-    private ClientAdminEndpoints endpoints = new ClientAdminEndpoints();
+    private ClientAdminEndpoints endpoints = null;
 
-    private BaseClientDetails input = new BaseClientDetails();
+    private BaseClientDetails input = null;
+    
+    private BaseClientDetails[] inputs = new BaseClientDetails[5];
 
-    private BaseClientDetails details = new BaseClientDetails();
+    private BaseClientDetails detail = null;
+    
+    private BaseClientDetails[] details = new BaseClientDetails[inputs.length];
 
-    @SuppressWarnings("unchecked")
-    private QueryableResourceManager<ClientDetails> clientDetailsService = Mockito.mock(QueryableResourceManager.class);
+    
+    private QueryableResourceManager<ClientDetails> clientDetailsService = null;
 
-    private SecurityContextAccessor securityContextAccessor = Mockito.mock(SecurityContextAccessor.class);
+    private SecurityContextAccessor securityContextAccessor = null;
 
-    private ClientRegistrationService clientRegistrationService = Mockito.mock(ClientRegistrationService.class);
+    private ClientRegistrationService clientRegistrationService = null;
+
+    private AuthenticationManager authenticationManager = null;
+
+    private ApprovalStore approvalStore = null;
 
     @Rule
     public ExpectedException expected = ExpectedException.none();
 
     @Before
     public void setUp() throws Exception {
+        endpoints = new ClientAdminEndpoints();
+        
+        clientDetailsService = Mockito.mock(QueryableResourceManager.class);
+        securityContextAccessor = Mockito.mock(SecurityContextAccessor.class);
+        clientRegistrationService = Mockito.mock(ClientRegistrationService.class);
+        authenticationManager = Mockito.mock(AuthenticationManager.class);
+        approvalStore = mock(ApprovalStore.class);
+        
         endpoints.setClientDetailsService(clientDetailsService);
         endpoints.setClientRegistrationService(clientRegistrationService);
         endpoints.setSecurityContextAccessor(securityContextAccessor);
+        endpoints.setAuthenticationManager(authenticationManager);
+        endpoints.setApprovalStore(approvalStore);
 
         Map<String, String> attributeNameMap = new HashMap<String, String>();
         attributeNameMap.put("client_id", "clientId");
@@ -79,16 +104,36 @@ public class ClientAdminEndpointsTests {
         attributeNameMap.put("access_token_validity", "accessTokenValiditySeconds");
         attributeNameMap.put("refresh_token_validity", "refreshTokenValiditySeconds");
         endpoints.setAttributeNameMapper(new SimpleAttributeNameMapper(attributeNameMap));
-
+        
+        input = new BaseClientDetails();
         input.setClientId("foo");
         input.setClientSecret("secret");
         input.setAuthorizedGrantTypes(Arrays.asList("authorization_code"));
-        details = new BaseClientDetails(input);
-        details.setResourceIds(Arrays.asList("none"));
+        
+        for (int i=0; i<inputs.length; i++) {
+            inputs[i] = new BaseClientDetails();
+            inputs[i].setClientId("foo-"+i);
+            inputs[i].setClientSecret("secret-"+i);
+            inputs[i].setAuthorizedGrantTypes(Arrays.asList("authorization_code"));
+        }
+        
+        detail = new BaseClientDetails(input);
+        detail.setResourceIds(Arrays.asList("none"));
         // refresh token is added automatically by endpoint validation
-        details.setAuthorizedGrantTypes(Arrays.asList("authorization_code", "refresh_token"));
-        details.setScope(Arrays.asList("uaa.none"));
-        details.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.none"));
+        detail.setAuthorizedGrantTypes(Arrays.asList("authorization_code", "refresh_token"));
+        detail.setScope(Arrays.asList("uaa.none"));
+        detail.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.none"));
+
+        for (int i=0; i<details.length; i++) {
+            details[i] = new BaseClientDetails(inputs[i]);
+            details[i].setResourceIds(Arrays.asList("none"));
+            // refresh token is added automatically by endpoint validation
+            details[i].setAuthorizedGrantTypes(Arrays.asList("authorization_code", "refresh_token"));
+            details[i].setScope(Arrays.asList("uaa.none"));
+            details[i].setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.none"));
+        }
+
+        
         endpoints.afterPropertiesSet();
     }
 
@@ -105,49 +150,71 @@ public class ClientAdminEndpointsTests {
     public void testCreateClientDetails() throws Exception {
         ClientDetails result = endpoints.createClientDetails(input);
         assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).addClientDetails(details);
+        Mockito.verify(clientRegistrationService).addClientDetails(detail);
     }
 
+    @Test
+    public void testMultipleCreateClientDetails() throws Exception {
+        ClientDetails[] results = endpoints.createClientDetailsTx(inputs);
+        assertEquals("We should have created "+inputs.length+" clients.", inputs.length, results.length); 
+        for (int i=0; i<inputs.length; i++) {
+            ClientDetails result = results[i];
+            assertNull(result.getClientSecret());
+        }
+        //TODO figure out how to verify all five invocations
+        //Mockito.verify(clientRegistrationService, times(inputs.length)).addClientDetails(details[0]);        
+    }
+    
     @Test(expected = InvalidClientDetailsException.class)
     public void testCreateClientDetailsWithReservedId() throws Exception {
         input.setClientId("uaa");
         ClientDetails result = endpoints.createClientDetails(input);
-        assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).addClientDetails(details);
     }
 
+    @Test(expected = InvalidClientDetailsException.class)
+    public void testCreateMultipleClientDetailsWithReservedId() throws Exception {
+        inputs[inputs.length-1].setClientId("uaa");
+        ClientDetails[] result = endpoints.createClientDetailsTx(inputs);
+    }
+
+    
     @Test(expected = InvalidClientDetailsException.class)
     public void testCreateClientDetailsWithNoGrantType() throws Exception {
         input.setAuthorizedGrantTypes(Collections.<String> emptySet());
         ClientDetails result = endpoints.createClientDetails(input);
-        assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).addClientDetails(details);
     }
 
+    @Test(expected = InvalidClientDetailsException.class)
+    public void testCreateMultipleClientDetailsWithNoGrantType() throws Exception {
+        inputs[inputs.length-1].setAuthorizedGrantTypes(Collections.<String> emptySet());
+        ClientDetails[] result = endpoints.createClientDetailsTx(inputs);
+    }
+
+    
     @Test
     public void testCreateClientDetailsWithClientCredentials() throws Exception {
         input.setAuthorizedGrantTypes(Arrays.asList("client_credentials"));
-        details.setAuthorizedGrantTypes(input.getAuthorizedGrantTypes());
+        detail.setAuthorizedGrantTypes(input.getAuthorizedGrantTypes());
         ClientDetails result = endpoints.createClientDetails(input);
         assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).addClientDetails(details);
+        Mockito.verify(clientRegistrationService).addClientDetails(detail);
     }
 
     @Test
     public void testCreateClientDetailsWithAdditionalInformation() throws Exception {
         input.setAdditionalInformation(Collections.singletonMap("foo", "bar"));
-        details.setAdditionalInformation(input.getAdditionalInformation());
+        detail.setAdditionalInformation(input.getAdditionalInformation());
         ClientDetails result = endpoints.createClientDetails(input);
         assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).addClientDetails(details);
+        Mockito.verify(clientRegistrationService).addClientDetails(detail);
     }
 
     @Test
     public void testResourceServerCreation() throws Exception {
-        details.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.resource"));
-        details.setScope(Arrays.asList(details.getClientId() + ".some"));
-        details.setAuthorizedGrantTypes(Arrays.asList("client_credentials"));
-        endpoints.createClientDetails(details);
+        detail.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.resource"));
+        detail.setScope(Arrays.asList(detail.getClientId() + ".some"));
+        detail.setAuthorizedGrantTypes(Arrays.asList("client_credentials"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
@@ -155,13 +222,13 @@ public class ClientAdminEndpointsTests {
         input.setAuthorizedGrantTypes(Arrays.asList("password"));
         ClientDetails result = endpoints.createClientDetails(input);
         assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).addClientDetails(details);
+        Mockito.verify(clientRegistrationService).addClientDetails(detail);
     }
 
     @Test
     public void testFindClientDetails() throws Exception {
         Mockito.when(clientDetailsService.query("filter", "sortBy", true)).thenReturn(
-                        Arrays.<ClientDetails> asList(details));
+                        Arrays.<ClientDetails> asList(detail));
         SearchResults<?> result = endpoints.listClientDetails("client_id", "filter", "sortBy", "ascending", 1, 100);
         assertEquals(1, result.getResources().size());
         Mockito.verify(clientDetailsService).query("filter", "sortBy", true);
@@ -174,8 +241,8 @@ public class ClientAdminEndpointsTests {
         input.setScope(Arrays.asList("read"));
         ClientDetails result = endpoints.updateClientDetails(input, input.getClientId());
         assertNull(result.getClientSecret());
-        details.setScope(Arrays.asList("read"));
-        Mockito.verify(clientRegistrationService).updateClientDetails(details);
+        detail.setScope(Arrays.asList("read"));
+        Mockito.verify(clientRegistrationService).updateClientDetails(detail);
     }
 
     @Test
@@ -195,8 +262,8 @@ public class ClientAdminEndpointsTests {
         input.setScope(Arrays.asList(input.getClientId() + ".read"));
         ClientDetails result = endpoints.updateClientDetails(input, input.getClientId());
         assertNull(result.getClientSecret());
-        details.setScope(Arrays.asList(input.getClientId() + ".read"));
-        Mockito.verify(clientRegistrationService).updateClientDetails(details);
+        detail.setScope(Arrays.asList(input.getClientId() + ".read"));
+        Mockito.verify(clientRegistrationService).updateClientDetails(detail);
     }
 
     @Test
@@ -207,9 +274,9 @@ public class ClientAdminEndpointsTests {
         input.setAdditionalInformation(Collections.singletonMap("foo", "bar"));
         ClientDetails result = endpoints.updateClientDetails(input, input.getClientId());
         assertNull(result.getClientSecret());
-        details.setScope(input.getScope());
-        details.setAdditionalInformation(input.getAdditionalInformation());
-        Mockito.verify(clientRegistrationService).updateClientDetails(details);
+        detail.setScope(input.getScope());
+        detail.setAdditionalInformation(input.getAdditionalInformation());
+        Mockito.verify(clientRegistrationService).updateClientDetails(detail);
     }
 
     @Test
@@ -220,15 +287,15 @@ public class ClientAdminEndpointsTests {
         input.setAdditionalInformation(Collections.<String, Object> emptyMap());
         ClientDetails result = endpoints.updateClientDetails(input, input.getClientId());
         assertNull(result.getClientSecret());
-        Mockito.verify(clientRegistrationService).updateClientDetails(details);
+        Mockito.verify(clientRegistrationService).updateClientDetails(detail);
     }
 
     @Test
     public void testPartialUpdateClientDetails() throws Exception {
-        BaseClientDetails updated = new BaseClientDetails(details);
+        BaseClientDetails updated = new BaseClientDetails(detail);
         input = new BaseClientDetails();
         input.setClientId("foo");
-        Mockito.when(clientDetailsService.retrieve(input.getClientId())).thenReturn(details);
+        Mockito.when(clientDetailsService.retrieve(input.getClientId())).thenReturn(detail);
         input.setScope(Arrays.asList("foo.write"));
         updated.setScope(input.getScope());
         updated.setClientSecret(null);
@@ -239,45 +306,47 @@ public class ClientAdminEndpointsTests {
 
     @Test
     public void testChangeSecret() throws Exception {
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(auth);
 
-        when(clientDetailsService.retrieve(details.getClientId())).thenReturn(details);
-
+        when(clientDetailsService.retrieve(detail.getClientId())).thenReturn(detail);
         SecurityContextAccessor sca = mock(SecurityContextAccessor.class);
-        when(sca.getClientId()).thenReturn(details.getClientId());
+        when(sca.getClientId()).thenReturn(detail.getClientId());
         when(sca.isClient()).thenReturn(true);
         endpoints.setSecurityContextAccessor(sca);
 
         SecretChangeRequest change = new SecretChangeRequest();
-        change.setOldSecret(details.getClientSecret());
+        change.setOldSecret(detail.getClientSecret());
         change.setSecret("newpassword");
-        endpoints.changeSecret(details.getClientId(), change);
-        Mockito.verify(clientRegistrationService).updateClientSecret(details.getClientId(), "newpassword");
+        endpoints.changeSecret(detail.getClientId(), change);
+        Mockito.verify(clientRegistrationService).updateClientSecret(detail.getClientId(), "newpassword");
 
     }
 
     @Test
     public void testChangeSecretDeniedForUser() throws Exception {
 
-        when(clientDetailsService.retrieve(details.getClientId())).thenReturn(details);
+        when(clientDetailsService.retrieve(detail.getClientId())).thenReturn(detail);
 
         SecurityContextAccessor sca = mock(SecurityContextAccessor.class);
-        when(sca.getClientId()).thenReturn(details.getClientId());
+        when(sca.getClientId()).thenReturn(detail.getClientId());
         when(sca.isClient()).thenReturn(false);
         endpoints.setSecurityContextAccessor(sca);
 
         SecretChangeRequest change = new SecretChangeRequest();
-        change.setOldSecret(details.getClientSecret());
+        change.setOldSecret(detail.getClientSecret());
         change.setSecret("newpassword");
-        expected.expect(IllegalStateException.class);
+        expected.expect(InvalidClientDetailsException.class);
         expected.expectMessage("Only a client");
-        endpoints.changeSecret(details.getClientId(), change);
+        endpoints.changeSecret(detail.getClientId(), change);
 
     }
 
     @Test
     public void testChangeSecretDeniedForNonAdmin() throws Exception {
 
-        when(clientDetailsService.retrieve(details.getClientId())).thenReturn(details);
+        when(clientDetailsService.retrieve(detail.getClientId())).thenReturn(detail);
 
         SecurityContextAccessor sca = mock(SecurityContextAccessor.class);
         when(sca.getClientId()).thenReturn("bar");
@@ -287,54 +356,58 @@ public class ClientAdminEndpointsTests {
 
         SecretChangeRequest change = new SecretChangeRequest();
         change.setSecret("newpassword");
-        expected.expect(IllegalStateException.class);
+        expected.expect(InvalidClientDetailsException.class);
         expected.expectMessage("Not permitted to change");
-        endpoints.changeSecret(details.getClientId(), change);
+        endpoints.changeSecret(detail.getClientId(), change);
 
     }
 
     @Test
     public void testChangeSecretDeniedWhenOldSecretNotProvided() throws Exception {
 
-        when(clientDetailsService.retrieve(details.getClientId())).thenReturn(details);
+        when(clientDetailsService.retrieve(detail.getClientId())).thenReturn(detail);
+
+
+        when(authenticationManager.authenticate(any(Authentication.class))).thenThrow(new BadCredentialsException(""));
+
 
         SecurityContextAccessor sca = mock(SecurityContextAccessor.class);
-        when(sca.getClientId()).thenReturn(details.getClientId());
+        when(sca.getClientId()).thenReturn(detail.getClientId());
         when(sca.isClient()).thenReturn(true);
         when(sca.isAdmin()).thenReturn(false);
         endpoints.setSecurityContextAccessor(sca);
 
         SecretChangeRequest change = new SecretChangeRequest();
         change.setSecret("newpassword");
-        expected.expect(IllegalStateException.class);
+        expected.expect(InvalidClientDetailsException.class);
         expected.expectMessage("Previous secret is required");
-        endpoints.changeSecret(details.getClientId(), change);
+        endpoints.changeSecret(detail.getClientId(), change);
 
     }
 
     @Test
     public void testChangeSecretDeniedWhenOldSecretNotProvidedEvenFormAdmin() throws Exception {
 
-        when(clientDetailsService.retrieve(details.getClientId())).thenReturn(details);
-
+        when(clientDetailsService.retrieve(detail.getClientId())).thenReturn(detail);
+        when(authenticationManager.authenticate(any(Authentication.class))).thenThrow(new BadCredentialsException(""));
         SecurityContextAccessor sca = mock(SecurityContextAccessor.class);
-        when(sca.getClientId()).thenReturn(details.getClientId());
+        when(sca.getClientId()).thenReturn(detail.getClientId());
         when(sca.isClient()).thenReturn(true);
         when(sca.isAdmin()).thenReturn(true);
         endpoints.setSecurityContextAccessor(sca);
 
         SecretChangeRequest change = new SecretChangeRequest();
         change.setSecret("newpassword");
-        expected.expect(IllegalStateException.class);
+        expected.expect(InvalidClientDetailsException.class);
         expected.expectMessage("Previous secret is required");
-        endpoints.changeSecret(details.getClientId(), change);
+        endpoints.changeSecret(detail.getClientId(), change);
 
     }
 
     @Test
     public void testChangeSecretByAdmin() throws Exception {
 
-        when(clientDetailsService.retrieve(details.getClientId())).thenReturn(details);
+        when(clientDetailsService.retrieve(detail.getClientId())).thenReturn(detail);
 
         SecurityContextAccessor sca = mock(SecurityContextAccessor.class);
         when(sca.getClientId()).thenReturn("admin");
@@ -343,17 +416,17 @@ public class ClientAdminEndpointsTests {
         endpoints.setSecurityContextAccessor(sca);
 
         SecretChangeRequest change = new SecretChangeRequest();
-        change.setOldSecret(details.getClientSecret());
+        change.setOldSecret(detail.getClientSecret());
         change.setSecret("newpassword");
-        endpoints.changeSecret(details.getClientId(), change);
-        Mockito.verify(clientRegistrationService).updateClientSecret(details.getClientId(), "newpassword");
+        endpoints.changeSecret(detail.getClientId(), change);
+        Mockito.verify(clientRegistrationService).updateClientSecret(detail.getClientId(), "newpassword");
 
     }
 
     @Test
     public void testRemoveClientDetailsAdminCaller() throws Exception {
         Mockito.when(securityContextAccessor.isAdmin()).thenReturn(true);
-        Mockito.when(clientDetailsService.retrieve("foo")).thenReturn(details);
+        Mockito.when(clientDetailsService.retrieve("foo")).thenReturn(detail);
         ClientDetails result = endpoints.removeClientDetails("foo");
         assertNull(result.getClientSecret());
         Mockito.verify(clientRegistrationService).removeClientDetails("foo");
@@ -370,8 +443,8 @@ public class ClientAdminEndpointsTests {
                 return "caller";
             }
         });
-        details.setScope(Arrays.asList("some"));
-        endpoints.createClientDetails(details);
+        detail.setScope(Arrays.asList("some"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test
@@ -385,8 +458,8 @@ public class ClientAdminEndpointsTests {
                 return "caller";
             }
         });
-        details.setScope(Arrays.asList("none"));
-        endpoints.createClientDetails(details);
+        detail.setScope(Arrays.asList("none"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test
@@ -400,8 +473,8 @@ public class ClientAdminEndpointsTests {
                 return "caller";
             }
         });
-        details.setScope(Arrays.asList(details.getClientId() + ".read"));
-        endpoints.createClientDetails(details);
+        detail.setScope(Arrays.asList(detail.getClientId() + ".read"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
@@ -415,8 +488,8 @@ public class ClientAdminEndpointsTests {
                 return "caller";
             }
         });
-        details.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.some"));
-        endpoints.createClientDetails(details);
+        detail.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.some"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test
@@ -430,8 +503,8 @@ public class ClientAdminEndpointsTests {
                 return "caller";
             }
         });
-        details.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.none"));
-        endpoints.createClientDetails(details);
+        detail.setAuthorities(AuthorityUtils.commaSeparatedStringToAuthorityList("uaa.none"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
@@ -439,30 +512,30 @@ public class ClientAdminEndpointsTests {
         BaseClientDetails caller = new BaseClientDetails();
         caller.setScope(Arrays.asList("none"));
         when(clientDetailsService.retrieve("caller")).thenReturn(caller);
-        details.setAuthorizedGrantTypes(Arrays.asList("implicit"));
-        details.setClientSecret("hello");
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("implicit"));
+        detail.setClientSecret("hello");
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
     public void implicitClientWithNonEmptySecretIsRejected() throws Exception {
-        details.setAuthorizedGrantTypes(Arrays.asList("implicit"));
-        details.setClientSecret("hello");
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("implicit"));
+        detail.setClientSecret("hello");
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
     public void implicitAndAuthorizationCodeClientIsRejected() throws Exception {
-        details.setAuthorizedGrantTypes(Arrays.asList("implicit", "authorization_code"));
-        details.setClientSecret("hello");
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("implicit", "authorization_code"));
+        detail.setClientSecret("hello");
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
     public void implicitAndAuthorizationCodeClientIsRejectedWithNullPassword() throws Exception {
-        details.setAuthorizedGrantTypes(Arrays.asList("implicit", "authorization_code"));
-        details.setClientSecret(null);
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("implicit", "authorization_code"));
+        detail.setClientSecret(null);
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
@@ -473,38 +546,38 @@ public class ClientAdminEndpointsTests {
                 return true;
             }
         });
-        details.setAuthorizedGrantTypes(Arrays.asList("implicit", "authorization_code"));
-        details.setClientSecret("hello");
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("implicit", "authorization_code"));
+        detail.setClientSecret("hello");
+        endpoints.createClientDetails(detail);
     }
 
     @Test(expected = InvalidClientDetailsException.class)
     public void nonImplicitClientWithEmptySecretIsRejected() throws Exception {
-        details.setAuthorizedGrantTypes(Arrays.asList("authorization_code"));
-        details.setClientSecret("");
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("authorization_code"));
+        detail.setClientSecret("");
+        endpoints.createClientDetails(detail);
     }
 
     @Test
     public void updateNonImplicitClientWithEmptySecretIsOk() throws Exception {
         Mockito.when(securityContextAccessor.isAdmin()).thenReturn(true);
-        details.setAuthorizedGrantTypes(Arrays.asList("authorization_code"));
-        details.setClientSecret(null);
-        endpoints.updateClientDetails(details, details.getClientId());
+        detail.setAuthorizedGrantTypes(Arrays.asList("authorization_code"));
+        detail.setClientSecret(null);
+        endpoints.updateClientDetails(detail, detail.getClientId());
     }
 
     @Test(expected = InvalidClientDetailsException.class)
     public void updateNonImplicitClientAndMakeItImplicit() throws Exception {
-        assertFalse(details.getAuthorizedGrantTypes().contains("implicit"));
-        details.setAuthorizedGrantTypes(Arrays.asList("authorization_code", "implicit"));
-        details.setClientSecret(null);
-        endpoints.updateClientDetails(details, details.getClientId());
+        assertFalse(detail.getAuthorizedGrantTypes().contains("implicit"));
+        detail.setAuthorizedGrantTypes(Arrays.asList("authorization_code", "implicit"));
+        detail.setClientSecret(null);
+        endpoints.updateClientDetails(detail, detail.getClientId());
     }
 
     @Test(expected = InvalidClientDetailsException.class)
     public void invalidGrantTypeIsRejected() throws Exception {
-        details.setAuthorizedGrantTypes(Arrays.asList("not_a_grant_type"));
-        endpoints.createClientDetails(details);
+        detail.setAuthorizedGrantTypes(Arrays.asList("not_a_grant_type"));
+        endpoints.createClientDetails(detail);
     }
 
     @Test

@@ -33,7 +33,21 @@ public enum AuditEventType {
     SecretChangeFailure(9),
     ClientCreateSuccess(10),
     ClientUpdateSuccess(11),
-    ClientDeleteSuccess(12);
+    ClientDeleteSuccess(12),
+    ClientApprovalsDeleted(13),
+    ClientAuthenticationSuccess(14),
+    ClientAuthenticationFailure(15),
+    ApprovalModifiedEvent(16),
+    TokenIssuedEvent(17),
+    UserCreatedEvent(18),
+    UserModifiedEvent(19),
+    UserDeletedEvent(20),
+    UserVerifiedEvent(21),
+    PasswordResetRequest(22),
+    GroupCreatedEvent(23),
+    GroupModifiedEvent(24),
+    GroupDeletedEvent(23);
+
 
     private final int code;
 
