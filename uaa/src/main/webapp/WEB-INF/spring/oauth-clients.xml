@@ -94,7 +94,7 @@
                             <entry key="secret" value="loginsecret" />
                             <entry key="scope" value="openid,oauth.approvals" />
                             <entry key="authorized-grant-types" value="client_credentials,authorization_code" />
-                            <entry key="authorities" value="oauth.login" />
+                            <entry key="authorities" value="oauth.login,notifications.write" />
                             <entry key="autoapprove" value="true" />
                         </map>
                     </entry>
@@ -105,6 +105,13 @@
                             <entry key="scope" value="dashboard.user,openid" />
                             <entry key="authorized-grant-types" value="authorization_code" />
                             <entry key="authorities" value="uaa.resource" />
+                        </map>
+                    </entry>
+                    <entry key="notifications">
+                        <map>
+                            <entry key="secret" value="my-secret" />
+                            <entry key="authorized-grant-types" value="client_credentials" />
+                            <entry key="authorities" value="scim.read,cloud_controller.write" />
                         </map>
                     </entry>
                 </map>

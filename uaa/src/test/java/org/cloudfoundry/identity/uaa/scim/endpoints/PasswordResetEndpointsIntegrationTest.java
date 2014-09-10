@@ -17,6 +17,7 @@ import org.cloudfoundry.identity.uaa.test.DefaultIntegrationTestConfig;
 import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.cloudfoundry.identity.uaa.test.UaaTestAccounts;
 import org.cloudfoundry.identity.uaa.test.YamlServletProfileInitializerContextInitializer;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,6 +27,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+
+import java.util.Map;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -78,7 +81,10 @@ public class PasswordResetEndpointsIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String code = result.getResponse().getContentAsString();
+        String response = result.getResponse().getContentAsString();
+
+        Map<String,String> responseMap = new ObjectMapper().readValue(response, Map.class);
+        String code = responseMap.get("code");
 
         post = post("/password_change")
                 .header("Authorization", "Bearer " + loginToken)

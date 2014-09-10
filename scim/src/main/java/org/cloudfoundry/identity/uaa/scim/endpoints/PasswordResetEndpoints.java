@@ -71,7 +71,7 @@ public class PasswordResetEndpoints implements ApplicationEventPublisherAware {
     }
 
     @RequestMapping(value = "/password_resets", method = RequestMethod.POST)
-    public ResponseEntity<String> resetPassword(@RequestBody String email) throws IOException {
+    public ResponseEntity<Map<String,String>> resetPassword(@RequestBody String email) throws IOException {
         String jsonEmail = objectMapper.writeValueAsString(email);
         List<ScimUser> results = scimUserProvisioning.query("userName eq " + jsonEmail + " and origin eq \"" + Origin.UAA + "\"");
         if (results.isEmpty()) {
@@ -85,7 +85,10 @@ public class PasswordResetEndpoints implements ApplicationEventPublisherAware {
         ScimUser scimUser = results.get(0);
         String code = expiringCodeStore.generateCode(scimUser.getId(), new Timestamp(System.currentTimeMillis() + PASSWORD_RESET_LIFETIME)).getCode();
         publish(new ResetPasswordRequestEvent(email, code, SecurityContextHolder.getContext().getAuthentication()));
-        return new ResponseEntity<>(code, CREATED);
+        Map<String, String> response = new HashMap<>();
+        response.put("code", code);
+        response.put("userId", scimUser.getId());
+        return new ResponseEntity<>(response, CREATED);
     }
 
     @RequestMapping(value = "/password_change", method = RequestMethod.POST)
