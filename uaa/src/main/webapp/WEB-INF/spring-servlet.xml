@@ -192,6 +192,13 @@
     <context:annotation-config />
     <bean class="org.cloudfoundry.identity.uaa.coverage.CoverageConfig" />
 
+    <bean id="identityZoneEndpoints" class="org.cloudfoundry.identity.uaa.zone.IdentityZoneEndpoints" />
+
+    <bean id="identityZoneService" class="org.cloudfoundry.identity.uaa.zone.IdentityZoneService">
+        <constructor-arg ref="jdbcTemplate" />
+        <constructor-arg ref="jdbcPagingListFactory" />
+    </bean>
+
     <beans profile="ldap">
         <import resource="spring/ldap-integration.xml"/>
 
