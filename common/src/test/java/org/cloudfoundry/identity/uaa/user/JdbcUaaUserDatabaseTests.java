@@ -16,6 +16,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Collections;
 import java.util.UUID;
@@ -25,7 +26,10 @@ import javax.sql.DataSource;
 import org.cloudfoundry.identity.uaa.authentication.Origin;
 import org.cloudfoundry.identity.uaa.test.NullSafeSystemProfileValueSource;
 import org.cloudfoundry.identity.uaa.test.TestUtils;
+import org.cloudfoundry.identity.uaa.zone.IdentityZone;
+import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -57,19 +61,24 @@ public class JdbcUaaUserDatabaseTests {
 
     private static final String JOE_ID = "550e8400-e29b-41d4-a716-446655440000";
 
-    private static final String addUserSql = "insert into users (id, username, password, email, givenName, familyName, phoneNumber, origin) values (?,?,?,?,?,?,?,?)";
+    private static final String addUserSql = "insert into users (id, username, password, email, givenName, familyName, phoneNumber, origin, identity_zone_id) values (?,?,?,?,?,?,?,?,?)";
 
     private static final String getAuthoritiesSql = "select authorities from users where id=?";
 
     private static final String addAuthoritySql = "update users set authorities=? where id=?";
 
     private static final String MABEL_ID = UUID.randomUUID().toString();
+    
+    private static final String ALICE_ID = UUID.randomUUID().toString();
+    
+    private IdentityZone otherIdentityZone;
+    
 
     private JdbcTemplate template;
 
     private void addUser(String id, String name, String password) {
         TestUtils.assertNoSuchUser(template, "id", id);
-        template.update(addUserSql, id, name, password, name.toLowerCase() + "@test.org", name, name, "", Origin.UAA);
+        template.update(addUserSql, id, name, password, name.toLowerCase() + "@test.org", name, name, "", Origin.UAA, IdentityZoneHolder.get().getId());
     }
 
     private void addAuthority(String authority, String userId) {
@@ -80,7 +89,10 @@ public class JdbcUaaUserDatabaseTests {
 
     @Before
     public void initializeDb() throws Exception {
-
+        
+        otherIdentityZone = new IdentityZone();
+        otherIdentityZone.setId("some-other-zone-id");
+        
         template = new JdbcTemplate(dataSource);
 
         db = new JdbcUaaUserDatabase(template);
@@ -88,15 +100,19 @@ public class JdbcUaaUserDatabaseTests {
 
         TestUtils.assertNoSuchUser(template, "id", JOE_ID);
         TestUtils.assertNoSuchUser(template, "id", MABEL_ID);
+        TestUtils.assertNoSuchUser(template, "id", ALICE_ID);
         TestUtils.assertNoSuchUser(template, "userName", "jo@foo.com");
-
+        
         addUser(JOE_ID, "Joe", "joespassword");
         addUser(MABEL_ID, "mabel", "mabelspassword");
-
+        IdentityZoneHolder.set(otherIdentityZone);
+        addUser(ALICE_ID, "alice", "alicespassword");
+        IdentityZoneHolder.clear();
     }
 
     @After
     public void clearDb() throws Exception {
+        IdentityZoneHolder.clear();
         TestUtils.deleteFrom(dataSource, "users");
     }
 
@@ -128,7 +144,7 @@ public class JdbcUaaUserDatabaseTests {
     public void getNonExistentUserRaisedNotFoundException() {
         db.retrieveUserByName("jo", Origin.UAA);
     }
-
+    
     @Test
     public void getUserWithExtraAuthorities() {
         addAuthority("dash.admin", JOE_ID);
@@ -137,6 +153,31 @@ public class JdbcUaaUserDatabaseTests {
                         joe.getAuthorities().contains(new SimpleGrantedAuthority("uaa.user")));
         assertTrue("authorities does not contain dash.admin",
                         joe.getAuthorities().contains(new SimpleGrantedAuthority("dash.admin")));
+    }
+    
+    @Test(expected = UsernameNotFoundException.class)
+    public void getValidUserInDefaultZoneFromOtherZoneFails() {
+        IdentityZoneHolder.set(otherIdentityZone);
+        getValidUserSucceeds();
+        fail("Should have thrown an exception.");
+    }
+    
+    @Test
+    public void getValidUserInOtherZoneFromOtherZone() {
+        IdentityZoneHolder.set(otherIdentityZone);
+        getValidUserInOtherZoneFromDefaultZoneFails();
+    }
+    
+    @Test(expected = UsernameNotFoundException.class)
+    public void getValidUserInOtherZoneFromDefaultZoneFails() {
+        UaaUser alice = db.retrieveUserByName("alice",Origin.UAA);
+        assertNotNull(alice);
+        assertEquals(ALICE_ID, alice.getId());
+        assertEquals("alice", alice.getUsername());
+        assertEquals("alice@test.org", alice.getEmail());
+        assertEquals("alicespassword", alice.getPassword());
+        assertTrue("authorities does not contain uaa.user",
+                        alice.getAuthorities().contains(new SimpleGrantedAuthority("uaa.user")));
     }
 
 }
