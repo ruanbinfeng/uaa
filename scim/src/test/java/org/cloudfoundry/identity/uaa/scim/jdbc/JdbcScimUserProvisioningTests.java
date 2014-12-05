@@ -193,13 +193,13 @@ public class JdbcScimUserProvisioningTests {
     @Test
     public void countUsersAcrossAllZones() {
     	IdentityZoneHolder.clear();
-    	int beginningCount = db.getRowCount();
+    	int beginningCount = db.getTotalCount();
     	canCreateUserInDefaultIdentityZone();
     	IdentityZoneHolder.clear();
-    	assertEquals(beginningCount+1, db.getRowCount());
+    	assertEquals(beginningCount+1, db.getTotalCount());
     	canCreateUserInOtherIdentityZone();
     	IdentityZoneHolder.clear();
-    	assertEquals(beginningCount+2, db.getRowCount());
+    	assertEquals(beginningCount+2, db.getTotalCount());
     	
     }
 
