@@ -65,15 +65,6 @@ public class IdentityZoneEndpointsMockMvcTests {
     public static void tearDown() throws Exception {
         webApplicationContext.close();
     }
-    @Before
-    public void before() {
-    	IdentityZoneHolder.clear();
-    }
-    
-    @After
-    public void after() {
-    	IdentityZoneHolder.clear();
-    }
 
     @Test
     public void testCreateZone() throws Exception {
@@ -174,7 +165,7 @@ public class IdentityZoneEndpointsMockMvcTests {
         IdentityZone identityZone = getIdentityZone(id);
         IdentityZoneCreationRequest creationRequest = new IdentityZoneCreationRequest();
         creationRequest.setIdentityZone(identityZone);
-        List<BaseClientDetails> clientDetails = new ArrayList<BaseClientDetails>();
+        List<BaseClientDetails> clientDetails = new ArrayList<>();
     	BaseClientDetails client1 = new BaseClientDetails("client1", null,null, "client_credentials", "clients.admin,scim.read,scim.write");
     	client1.setClientSecret("client1Secret");
     	clientDetails.add(client1);
@@ -188,8 +179,8 @@ public class IdentityZoneEndpointsMockMvcTests {
                         .contentType(APPLICATION_JSON)
                         .content(new ObjectMapper().writeValueAsString(creationRequest)))
                         .andExpect(status().isCreated())
-                        .andExpect(content().string(""))
-                        .andReturn();
+                        .andExpect(content().string(""));
+
         mockMvc.perform(get("/oauth/token?grant_type=client_credentials")
                 .header("Authorization", getBasicAuthHeaderValue(client1.getClientId(), client1.getClientSecret()))
                 .with(new RequestPostProcessor() {
@@ -200,8 +191,7 @@ public class IdentityZoneEndpointsMockMvcTests {
 						return request;
 					}
 				}))
-                .andExpect(status().isOk())
-                .andReturn();
+                .andExpect(status().isOk());
 
         mockMvc.perform(get("/oauth/token?grant_type=client_credentials")
                 .header("Authorization", getBasicAuthHeaderValue(client2.getClientId(), client2.getClientSecret()))
@@ -213,9 +203,7 @@ public class IdentityZoneEndpointsMockMvcTests {
 						return request;
 					}
 				}))
-                .andExpect(status().isOk())
-                .andReturn();
-        
+                .andExpect(status().isOk());
     }
     
     private String getBasicAuthHeaderValue(String clientId, String clientSecret) {
