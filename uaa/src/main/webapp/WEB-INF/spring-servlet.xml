@@ -53,7 +53,8 @@
     <sec:http pattern="/accounts/email_sent" security="none" />
 
     <bean id="xFrameOptionsFilter" class="org.cloudfoundry.identity.uaa.login.XFrameOptionsFilter" />
-
+	<bean id="corsFilter" class="org.cloudfoundry.identity.uaa.web.CorsFilter"/>
+	
     <bean class="org.cloudfoundry.identity.uaa.security.web.SecurityFilterChainPostProcessor">
         <property name="requireHttps" value="${require_https:false}" />
         <property name="dumpRequests" value="${dump_requests:false}" />
@@ -74,7 +75,8 @@
         </property>
         <property name="additionalFilters">
         	<map>
-        		<entry key="1" value-ref="identityZoneResolvingFilter"/>
+        		<entry key="0" value-ref="corsFilter"/>
+        		<entry key="2" value-ref="identityZoneResolvingFilter"/>
         		<entry key="100" value-ref="identityZoneSwitchingFilter"/>
         	</map>
         </property>
