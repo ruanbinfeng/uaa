@@ -78,6 +78,7 @@
         		<entry key="0" value-ref="corsFilter"/>
         		<entry key="2" value-ref="identityZoneResolvingFilter"/>
         		<entry key="100" value-ref="identityZoneSwitchingFilter"/>
+        		<entry key="101" value-ref="xFrameOptionsFilter"/>
         	</map>
         </property>
     </bean>
