@@ -56,9 +56,6 @@ public class CreateAccountIT {
     @Value("${integration.test.base_url}")
     String baseUrl;
 
-    @Value("${integration.test.app_url}")
-    String appUrl;
-
     @Before
     public void setUp() {
         webDriver.get(baseUrl + "/logout.do");

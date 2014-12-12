@@ -1,5 +1,5 @@
 /*******************************************************************************
- *     Cloud Foundry 
+ *     Cloud Foundry
  *     Copyright (c) [2009-2014] Pivotal Software, Inc. All Rights Reserved.
  *
  *     This product is licensed to you under the Apache License, Version 2.0 (the "License").
@@ -77,7 +77,7 @@ public class OpenIdTokenGrantsIT {
 
     @Autowired
     TestAccounts testAccounts;
-    
+
     @Autowired @Rule
     public IntegrationTestRule integrationTestRule;
 
@@ -89,9 +89,6 @@ public class OpenIdTokenGrantsIT {
 
     @Value("${integration.test.uaa_url}")
     String uaaUrl;
-
-    @Value("${integration.test.app_url}")
-    String appUrl;
 
     @Autowired
     RestOperations restOperations;

@@ -37,9 +37,6 @@ public class PasswordGrantIT {
     @Value("${integration.test.base_url}")
     String baseUrl;
 
-    @Value("${integration.test.app_url}")
-    String appUrl;
-
     @Autowired
     RestOperations restOperations;
 
