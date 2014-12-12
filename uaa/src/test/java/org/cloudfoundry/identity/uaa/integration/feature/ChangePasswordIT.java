@@ -1,5 +1,5 @@
 /*******************************************************************************
- *     Cloud Foundry 
+ *     Cloud Foundry
  *     Copyright (c) [2009-2014] Pivotal Software, Inc. All Rights Reserved.
  *
  *     This product is licensed to you under the Apache License, Version 2.0 (the "License").
@@ -41,9 +41,6 @@ public class ChangePasswordIT {
     WebDriver webDriver;
 
     @Autowired
-    SimpleSmtpServer simpleSmtpServer;
-
-    @Autowired
     TestClient testClient;
 
     @Autowired
@@ -51,7 +48,7 @@ public class ChangePasswordIT {
 
     @Value("${integration.test.base_url}")
     String baseUrl;
-    
+
     private String userEmail;
 
     @Before

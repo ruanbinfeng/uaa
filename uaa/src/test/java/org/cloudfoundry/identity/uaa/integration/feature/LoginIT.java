@@ -1,5 +1,5 @@
 /*******************************************************************************
- *     Cloud Foundry 
+ *     Cloud Foundry
  *     Copyright (c) [2009-2014] Pivotal Software, Inc. All Rights Reserved.
  *
  *     This product is licensed to you under the Apache License, Version 2.0 (the "License").
@@ -56,15 +56,12 @@ public class LoginIT {
 
     @Value("${integration.test.base_url}")
     String baseUrl;
-    
+
     @Autowired
     TestAccounts testAccounts;
 
     @Autowired
     TestClient testClient;
-
-    @Autowired
-    SimpleSmtpServer simpleSmtpServer;
 
     @Before
     public void setUp() throws Exception {
