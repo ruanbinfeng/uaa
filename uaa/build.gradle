@@ -89,6 +89,19 @@ task integrationTest(type: Test) {
   }
 }
 
+task cfIntegrationTest(type: Test) {
+  filter {
+    includeTestsMatching "*IT"
+  }
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/AppApprovalIT.class'
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/AutologinIT.class'
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/ChangeEmailIT.class'
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/CreateAccountIT.class'
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/InvitationsIT.class'
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/ResetPasswordIT.class'
+  exclude 'org/cloudfoundry/identity/uaa/integration/feature/SamlLoginIT.class'
+}
+
 task instrumentedWar(type: War, dependsOn: instrument) {
   dependsOn identityCommon.tasks.findByName('instrumentedJar'),
             identityScim.tasks.findByName('instrumentedJar'),
