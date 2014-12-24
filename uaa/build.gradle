@@ -75,6 +75,7 @@ dependencies {
 test {
   dependsOn identityCommon.instrumentedJar, identityScim.instrumentedJar, identityLogin.instrumentedJar
   exclude 'org/cloudfoundry/identity/uaa/integration/*.class'
+  exclude 'org/cloudfoundry/identity/uaa/acceptance/*.class'
   exclude '**/*IT.class'
 }
 
@@ -89,17 +90,10 @@ task integrationTest(type: Test) {
   }
 }
 
-task cfIntegrationTest(type: Test) {
+task acceptanceTest(type: Test) {
   filter {
-    includeTestsMatching "*IT"
+    includeTestsMatching "org.cloudfoundry.identity.uaa.acceptance.*"
   }
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/AppApprovalIT.class'
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/AutologinIT.class'
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/ChangeEmailIT.class'
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/CreateAccountIT.class'
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/InvitationsIT.class'
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/ResetPasswordIT.class'
-  exclude 'org/cloudfoundry/identity/uaa/integration/feature/SamlLoginIT.class'
 }
 
 task instrumentedWar(type: War, dependsOn: instrument) {
