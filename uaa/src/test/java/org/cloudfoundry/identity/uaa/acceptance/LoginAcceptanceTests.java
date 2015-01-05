@@ -12,43 +12,30 @@
  *******************************************************************************/
 package org.cloudfoundry.identity.uaa.acceptance;
 
-import org.apache.commons.lang.RandomStringUtils;
-import org.apache.commons.lang.math.RandomUtils;
+import java.security.SecureRandom;
+
+import static org.junit.Assert.assertThat;
+import org.cloudfoundry.identity.uaa.ServerRunning;
 import org.cloudfoundry.identity.uaa.integration.feature.TestClient;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.web.client.RestTemplate;
-
-import java.net.URLEncoder;
-import java.security.SecureRandom;
-import java.util.Random;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = DefaultAcceptanceTestConfig.class)
 public class LoginAcceptanceTests {
+
+    @Rule
+    public ServerRunning serverRunning = ServerRunning.isRunning();
 
     @Value("${integration.test.base_url}")
     private String baseUrl;
@@ -58,9 +45,6 @@ public class LoginAcceptanceTests {
 
     @Autowired
     private TestClient testClient;
-
-    @Autowired
-    private RestTemplate restTemplate;
 
     private String userName;
     private String scimClientId;
