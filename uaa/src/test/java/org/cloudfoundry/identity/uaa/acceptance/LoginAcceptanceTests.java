@@ -40,6 +40,12 @@ public class LoginAcceptanceTests {
     @Value("${integration.test.base_url}")
     private String baseUrl;
 
+    @Value("${ADMIN_CLIENT_ID:'admin'}")
+    private String adminClientId;
+
+    @Value("${ADMIN_CLIENT_SECRET:'admin-secret'}")
+    private String adminClientSecret;
+
     @Autowired
     private WebDriver webDriver;
 
@@ -55,7 +61,7 @@ public class LoginAcceptanceTests {
     public void setUp() throws Exception {
         int randomInt = new SecureRandom().nextInt();
 
-        adminClientToken = testClient.getOAuthAccessToken("admin", "adminsecret", "client_credentials", "clients.write");
+        adminClientToken = testClient.getOAuthAccessToken(adminClientId, adminClientSecret, "client_credentials", "clients.write");
 
         scimClientId = "acceptance-scim-" + randomInt;
         testClient.createScimClient(adminClientToken, scimClientId);
