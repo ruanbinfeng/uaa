@@ -16,6 +16,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.cloudfoundry.identity.uaa.authentication.Origin;
 import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.cloudfoundry.identity.uaa.test.YamlServletProfileInitializerContextInitializer;
+import org.cloudfoundry.identity.uaa.util.SetServerNameRequestPostProcessor;
 import org.cloudfoundry.identity.uaa.zone.IdentityProvider;
 import org.cloudfoundry.identity.uaa.zone.IdentityProviderProvisioning;
 import org.cloudfoundry.identity.uaa.zone.IdentityZone;
@@ -32,7 +33,6 @@ import org.springframework.mock.web.MockServletContext;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.support.XmlWebApplicationContext;
 
@@ -160,10 +160,10 @@ public class IdentityZoneEndpointsMockMvcTests {
         
         creationRequest.setIdentityZone(identityZone2);
         mockMvc.perform(put("/identity-zones/" + UUID.randomUUID().toString())
-                        .header("Authorization", "Bearer "+identityAdminToken)
-                        .contentType(APPLICATION_JSON)
-                        .accept(APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(creationRequest)))
+                            .header("Authorization", "Bearer "+identityAdminToken)
+                            .contentType(APPLICATION_JSON)
+                            .accept(APPLICATION_JSON)
+                            .content(new ObjectMapper().writeValueAsString(creationRequest)))
                         .andExpect(status().isConflict());
     }
     
@@ -190,28 +190,14 @@ public class IdentityZoneEndpointsMockMvcTests {
                         .andExpect(content().string(""))
                         .andReturn();
         mockMvc.perform(get("/oauth/token?grant_type=client_credentials")
-                .header("Authorization", getBasicAuthHeaderValue(client1.getClientId(), client1.getClientSecret()))
-                .with(new RequestPostProcessor() {
-					@Override
-					public MockHttpServletRequest postProcessRequest(
-							MockHttpServletRequest request) {
-						request.setServerName(id+".localhost");
-						return request;
-					}
-				}))
+                    .header("Authorization", getBasicAuthHeaderValue(client1.getClientId(), client1.getClientSecret()))
+                    .with(new SetServerNameRequestPostProcessor(id+".localhost")))
                 .andExpect(status().isOk())
                 .andReturn();
 
         mockMvc.perform(get("/oauth/token?grant_type=client_credentials")
-                .header("Authorization", getBasicAuthHeaderValue(client2.getClientId(), client2.getClientSecret()))
-                .with(new RequestPostProcessor() {
-					@Override
-					public MockHttpServletRequest postProcessRequest(
-							MockHttpServletRequest request) {
-						request.setServerName(id+".localhost");
-						return request;
-					}
-				}))
+                    .header("Authorization", getBasicAuthHeaderValue(client2.getClientId(), client2.getClientSecret()))
+                    .with(new SetServerNameRequestPostProcessor(id+".localhost")))
                 .andExpect(status().isOk())
                 .andReturn();
         
